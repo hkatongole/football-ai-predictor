@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html.dark body {
+    @apply bg-pitch-900 text-white;
+  }
+  html:not(.dark) body {
+    @apply bg-slate-100 text-slate-900;
+  }
+  html:not(.dark) .glass-card {
+    @apply bg-white/70 border-slate-200 text-slate-900;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-glass-gradient backdrop-blur-md border border-white/10 rounded-2xl shadow-glass;
+  }
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors;
+  }
+  .confidence-pill {
+    @apply text-xs font-bold px-2 py-1 rounded-full;
+  }
+}
+
+html, body, #root { height: 100%; }

@@ -1,0 +1,46 @@
+{
+  "name": "football-ai-predictor-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "seed": "node prisma/seed.js",
+    "generate-vapid": "node src/scripts/generateVapidKeys.js",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --coverage"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.1",
+    "axios": "^1.7.7",
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.7.4",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^7.1.0",
+    "ioredis": "^5.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.15",
+    "socket.io": "^4.7.5",
+    "stripe": "^16.12.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "web-push": "^3.6.7",
+    "winston": "^3.14.2",
+    "xss-clean": "^0.1.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.4",
+    "prisma": "^5.19.1",
+    "supertest": "^7.0.0"
+  }
+}

@@ -1,0 +1,80 @@
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: football_ai_predictor
+      MYSQL_USER: fap_user
+      MYSQL_PASSWORD: fap_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: mysql://fap_user:fap_password@mysql:3306/football_ai_predictor
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "5000:5000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: sh -c "npx prisma migrate deploy && npm run seed --if-present && node src/server.js"
+
+  # PlusOne bridge — read-only, serves matches/predictions/stats sourced from
+  # a PlusOne SQLite export mounted at ./bridge/data (run `npm run sync -- <path>`
+  # in bridge/ to populate it, or drop plusone_backup.sqlite there directly).
+  # Shares JWT_ACCESS_SECRET with backend so premium-gating tokens are trusted
+  # by both services — set the SAME value in both backend/.env and bridge/.env.
+  bridge:
+    build:
+      context: .
+      dockerfile: bridge/Dockerfile
+    restart: unless-stopped
+    env_file: ./bridge/.env
+    environment:
+      PLUSONE_DB_PATH: /app/data/plusone_backup.sqlite
+      CLIENT_URL: http://localhost:8080
+    ports:
+      - "5050:5050"
+    volumes:
+      - ./bridge/data:/app/data
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+      - bridge
+
+volumes:
+  mysql_data:
+  redis_data:

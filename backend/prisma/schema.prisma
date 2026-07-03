@@ -1,0 +1,414 @@
+// ============================================================
+// Football AI Predictor - Prisma Schema (MySQL)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// AUTH / USERS
+// ------------------------------------------------------------
+
+enum RoleName {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        RoleName @unique
+  permissions Permission[]
+  users       User[]
+  createdAt   DateTime @default(now())
+}
+
+model Permission {
+  id     Int    @id @default(autoincrement())
+  key    String @unique // e.g. "manage_users", "manage_fixtures"
+  roles  Role[]
+}
+
+model User {
+  id                Int       @id @default(autoincrement())
+  email             String    @unique
+  username          String    @unique
+  passwordHash      String
+  fullName          String?
+  avatarUrl         String?
+  roleId            Int
+  role              Role      @relation(fields: [roleId], references: [id])
+  isEmailVerified   Boolean   @default(false)
+  emailVerifyToken  String?
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  isActive          Boolean   @default(true)
+  isPremium         Boolean   @default(false)
+  refreshTokens     RefreshToken[]
+  pushSubscriptions PushSubscription[]
+  favorites         Favorite[]
+  notifications     Notification[]
+  subscriptions     Subscription[]
+  payments          Payment[]
+  predictionViews   PredictionView[]
+  activityLogs      ActivityLog[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([roleId])
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique @db.VarChar(512)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique @db.VarChar(512)
+  p256dh    String   @db.VarChar(255)
+  auth      String   @db.VarChar(255)
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+// FOOTBALL DATA (synced from SoccerData API)
+// ------------------------------------------------------------
+
+model Country {
+  id      Int      @id @default(autoincrement())
+  name    String   @unique
+  code    String?
+  flagUrl String?
+  leagues League[]
+}
+
+model League {
+  id            Int       @id @default(autoincrement())
+  externalId    String    @unique // SoccerData API id
+  name          String
+  logoUrl       String?
+  countryId     Int?
+  country       Country?  @relation(fields: [countryId], references: [id])
+  season        String?
+  type          String?   // league | cup | international
+  isWomens      Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  teams         Team[]
+  matches       Match[]
+  standings     Standing[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([externalId])
+}
+
+model Team {
+  id            Int       @id @default(autoincrement())
+  externalId    String    @unique
+  name          String
+  shortName     String?
+  logoUrl       String?
+  venue         String?
+  founded       Int?
+  leagueId      Int?
+  league        League?   @relation(fields: [leagueId], references: [id])
+  eloRating     Float     @default(1500)
+  players       Player[]
+  homeMatches   Match[]   @relation("HomeTeam")
+  awayMatches   Match[]   @relation("AwayTeam")
+  standings     Standing[]
+  favorites     Favorite[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([leagueId])
+}
+
+model Player {
+  id          Int      @id @default(autoincrement())
+  externalId  String   @unique
+  name        String
+  position    String?
+  nationality String?
+  age         Int?
+  photoUrl    String?
+  teamId      Int?
+  team        Team?    @relation(fields: [teamId], references: [id])
+  isInjured   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([teamId])
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  HALF_TIME
+  FINISHED
+  POSTPONED
+  CANCELLED
+}
+
+model Match {
+  id             Int          @id @default(autoincrement())
+  externalId     String       @unique
+  leagueId       Int
+  league         League       @relation(fields: [leagueId], references: [id])
+  homeTeamId     Int
+  homeTeam       Team         @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId     Int
+  awayTeam       Team         @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  kickoff        DateTime
+  status         MatchStatus  @default(SCHEDULED)
+  minute         Int?
+  homeScore      Int?
+  awayScore      Int?
+  homeXg         Float?
+  awayXg         Float?
+  venue          String?
+  weather        String?
+  statsJson      Json?        // possession, shots, corners, cards, etc
+  lineupsJson    Json?
+  oddsJson       Json?
+  predictions    Prediction[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([leagueId, kickoff])
+  @@index([status])
+}
+
+model Standing {
+  id        Int    @id @default(autoincrement())
+  leagueId  Int
+  league    League @relation(fields: [leagueId], references: [id])
+  teamId    Int
+  team      Team   @relation(fields: [teamId], references: [id])
+  played    Int    @default(0)
+  won       Int    @default(0)
+  drawn     Int    @default(0)
+  lost      Int    @default(0)
+  goalsFor  Int    @default(0)
+  goalsAgainst Int @default(0)
+  points    Int    @default(0)
+  position  Int?
+  updatedAt DateTime @updatedAt
+
+  @@unique([leagueId, teamId])
+}
+
+// ------------------------------------------------------------
+// PREDICTIONS
+// ------------------------------------------------------------
+
+enum EngineType {
+  STATISTICAL
+  MACHINE_LEARNING
+  HYBRID_AI
+}
+
+model PredictionModel {
+  id           Int          @id @default(autoincrement())
+  name         String
+  engineType   EngineType
+  version      String
+  accuracy     Float?       // rolling accuracy %
+  isActive     Boolean      @default(true)
+  predictions  Prediction[]
+  createdAt    DateTime     @default(now())
+}
+
+model Prediction {
+  id                Int             @id @default(autoincrement())
+  matchId           Int
+  match             Match           @relation(fields: [matchId], references: [id])
+  modelId           Int
+  model             PredictionModel @relation(fields: [modelId], references: [id])
+  homeWinProb       Float
+  drawProb          Float
+  awayWinProb       Float
+  predictedScoreHome Int?
+  predictedScoreAway Int?
+  btts              Boolean?
+  overUnder         Json?          // { "0.5":.., "1.5":.., "2.5":.., "3.5":.. }
+  confidence        Float
+  riskRating        String?        // LOW / MEDIUM / HIGH
+  recommendedBet    String?
+  reasoning         String?        @db.Text
+  isPremium         Boolean        @default(false)
+  outcome           String?        // WON / LOST / PENDING
+  views             PredictionView[]
+  createdAt         DateTime       @default(now())
+
+  @@index([matchId])
+  @@index([modelId])
+}
+
+model PredictionView {
+  id           Int        @id @default(autoincrement())
+  predictionId Int
+  prediction   Prediction @relation(fields: [predictionId], references: [id])
+  userId       Int
+  user         User       @relation(fields: [userId], references: [id])
+  viewedAt     DateTime   @default(now())
+}
+
+// ------------------------------------------------------------
+// SUBSCRIPTIONS / PAYMENTS
+// ------------------------------------------------------------
+
+model SubscriptionPlan {
+  id            Int            @id @default(autoincrement())
+  name          String
+  priceMonthly  Float
+  priceYearly   Float?
+  features      Json
+  isActive      Boolean        @default(true)
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                    Int              @id @default(autoincrement())
+  userId                Int
+  user                  User             @relation(fields: [userId], references: [id])
+  planId                Int
+  plan                  SubscriptionPlan @relation(fields: [planId], references: [id])
+  status                String           // ACTIVE / CANCELLED / EXPIRED
+  stripeSubscriptionId  String?          @unique
+  startDate             DateTime
+  endDate               DateTime
+  createdAt             DateTime         @default(now())
+}
+
+model Payment {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Float
+  currency  String   @default("USD")
+  provider  String   // stripe / paypal / flutterwave
+  status    String
+  reference String   @unique
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------------------------------------
+// ENGAGEMENT
+// ------------------------------------------------------------
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  teamId    Int?
+  team      Team?    @relation(fields: [teamId], references: [id])
+  leagueId  Int?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, teamId, leagueId])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  title     String
+  body      String
+  type      String   // MATCH_START | GOAL | PREDICTION | ADMIN | PREMIUM_TIP
+  data      Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model News {
+  id        Int      @id @default(autoincrement())
+  title     String
+  slug      String   @unique
+  body      String   @db.Text
+  imageUrl  String?
+  authorId  Int?
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Advertisement {
+  id        Int      @id @default(autoincrement())
+  title     String
+  imageUrl  String
+  linkUrl   String
+  placement String   // HOME_BANNER, SIDEBAR, INTERSTITIAL
+  isActive  Boolean  @default(true)
+  startsAt  DateTime?
+  endsAt    DateTime?
+}
+
+// ------------------------------------------------------------
+// SYSTEM / ADMIN
+// ------------------------------------------------------------
+
+model ApiKey {
+  id         Int      @id @default(autoincrement())
+  provider   String   // SOCCERDATA, STRIPE, FCM
+  label      String
+  keyValue   String   @db.Text
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model ApiLog {
+  id         Int      @id @default(autoincrement())
+  endpoint   String
+  method     String
+  statusCode Int
+  durationMs Int
+  ip         String?
+  userId     Int?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Setting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String @db.Text
+}
+
+model CronJob {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique
+  schedule   String
+  lastRunAt  DateTime?
+  lastStatus String?
+  isActive   Boolean   @default(true)
+}

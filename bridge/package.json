@@ -1,0 +1,25 @@
+{
+  "name": "football-ai-predictor-plusone-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only REST bridge exposing PlusOne's SQLite export in the API shape football-ai-predictor's frontend already expects. Never writes to, modifies, or executes any PlusOne extension code.",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "sync": "node src/scripts/importSnapshot.js",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+  },
+  "dependencies": {
+    "sql.js": "^1.11.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  }
+}
